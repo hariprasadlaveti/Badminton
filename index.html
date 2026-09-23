@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Badminton Attendance</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #17252f;
+    --muted: #6d7d83;
+    --line: #dfe8e6;
+    --surface: #ffffff;
+    --soft: #f1f7f5;
+    --teal: #087f78;
+    --teal-dark: #075b59;
+    --lime: #d6e84f;
+    --coral: #e36e4f;
+    --shadow: 0 18px 50px rgba(18, 55, 53, .12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    margin: 0;
+    padding: clamp(1rem, 4vw, 3.5rem) 1rem;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    background:
+      linear-gradient(135deg, rgba(234,246,241,.96), rgba(248,251,242,.92) 52%, rgba(255,245,236,.96)),
+      repeating-linear-gradient(90deg, rgba(8,127,120,.035) 0 1px, transparent 1px 72px);
+    color: var(--ink);
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 1.25rem;
+    border: 1px solid rgba(8,127,120,.1);
+    pointer-events: none;
+  }
+  .card {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+    width: 100%;
+    max-width: 1120px;
+    border: 1px solid rgba(8,127,120,.1);
+    border-radius: 20px;
+    box-shadow: 0 24px 70px rgba(18, 55, 53, .14);
+    padding: clamp(1.25rem, 4vw, 2.5rem);
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, var(--teal), var(--lime), var(--coral));
+  }
+  .eyebrow {
+    margin: .25rem 0 .55rem;
+    color: var(--coral);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 3.6vw, 3rem);
+    letter-spacing: .02em;
+    margin: 0 0 .35rem;
+    color: var(--teal-dark);
+  }
+  h1::after {
+    content: " / daily court log";
+    color: var(--coral);
+    font-size: .45em;
+    font-weight: 400;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .section-label {
+    margin: 1.6rem 0 .55rem;
+    color: var(--teal-dark);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .section-label + .date-row,
+  .section-label + .export-row,
+  .section-label + .expense-row { margin-top: 0; }
+  .date-row, .export-row, .expense-row {
+    display: flex;
+    gap: .65rem;
+    align-items: center;
+    margin-bottom: .8rem;
+    flex-wrap: wrap;
+  }
+  .date-row { margin-top: 1.5rem; }
+  .export-row { padding-top: .6rem; }
+  input[type="date"] {
+    flex: 1 1 180px;
+  }
+  input[type="date"], input[type="month"], input[type="number"], select {
+    min-height: 42px;
+    padding: .65rem .75rem;
+    font: inherit;
+    color: var(--ink);
+    background: #fbfdfc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  input[type="date"]:focus, input[type="month"]:focus, input[type="number"]:focus, select:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(8,127,120,.13);
+  }
+  input[type="month"] {
+    flex: 1 1 180px;
+  }
+  input[type="number"] {
+    flex: 1 1 160px;
+  }
+  select {
+    flex: 0 1 190px;
+  }
+  button {
+    min-height: 42px;
+    padding: .65rem .9rem;
+    font: 700 .82rem "Trebuchet MS", sans-serif;
+    color: var(--teal-dark);
+    border: 1px solid var(--line);
+    background: var(--soft);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform .18s, background .18s, border-color .18s;
+  }
+  button:hover { background: #e3f1ec; border-color: #a8d1c8; transform: translateY(-1px); }
+  #whatsappBtn { color: #fff; background: var(--teal); border-color: var(--teal); }
+  #whatsappBtn:hover { background: var(--teal-dark); }
+  #saveParticipantsBtn { width: 100%; margin: .9rem 0 1rem; color: #fff; background: var(--coral); border-color: var(--coral); box-shadow: 0 8px 18px rgba(227,110,79,.2); }
+  #saveParticipantsBtn:hover { background: #c9573b; }
+  ul { list-style: none; margin: 0; padding: .55rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .55rem; background: #edf6f3; border: 1px solid #d8e9e4; border-radius: 14px; }
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .65rem .75rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color .18s, background .18s, transform .18s;
+  }
+  li:hover { border-color: #9fd3c1; transform: translateY(-1px); }
+  label { display: flex; align-items: center; gap: .75rem; font-size: .95rem; cursor: pointer; flex: 1; }
+  input[type="checkbox"] { width: 19px; height: 19px; cursor: pointer; accent-color: var(--teal); }
+  .mark { font-size: 1.15rem; width: 1.5rem; text-align: center; }
+  .checked { border-color: #9fd3c1; background: #f4fbf7; }
+  .checked .mark { color: var(--teal); }
+  .checked label { font-weight: 600; }
+  .summary { margin: .8rem 0; font-size: .9rem; color: var(--muted); }
+  .whatsapp-status { min-height: 1.2em; margin: .2rem 0 .75rem; font-size: .82rem; color: var(--muted); }
+  .analysis { margin-top: 2.2rem; border-top: 1px solid var(--line); padding-top: 1.7rem; }
+  .analysis h2 { font-size: 1.35rem; margin: 0 0 1rem; color: var(--teal-dark); }
+  .analysis-grid { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: .65rem; margin-bottom: .9rem; overflow-x: auto; }
+  .metric { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: .85rem .65rem; text-align: center; }
+  .metric strong { display: block; font-size: 1.15rem; color: var(--teal-dark); }
+  .metric span { color: var(--muted); font-size: .72rem; }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .82rem; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+  th, td { padding: .65rem .55rem; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--teal-dark); background: var(--soft); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: none; }
+  th:not(:first-child), td:not(:first-child) { text-align: right; }
+  .chart { margin-top: 1.5rem; overflow-x: auto; }
+  .chart h3 { font-size: 1rem; margin: 0 0 .65rem; color: var(--teal-dark); }
+  .chart-grid { display: grid; gap: 3px; min-width: 620px; }
+  .chart-cell { min-width: 22px; height: 22px; border-radius: 5px; background: #e7eeec; }
+  .chart-cell.header { height: auto; background: transparent; color: var(--muted); font-size: .65rem; text-align: center; }
+  .chart-cell.name { background: transparent; font-size: .75rem; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chart-cell.available { background: var(--teal); }
+  .chart-cell.partial { background: var(--lime); }
+  .chart-legend { display: flex; gap: .75rem; margin-top: .7rem; color: var(--muted); font-size: .75rem; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: .3rem; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; background: #e7eeec; }
+  .legend-swatch.available { background: var(--teal); }
+  .legend-swatch.partial { background: var(--lime); }
+  @media (max-width: 720px) {
+    .card { border-radius: 16px; }
+    .date-row > *, .export-row > *, .expense-row > * { flex: 1 1 100%; }
+    .analysis-grid { grid-template-columns: repeat(5, 145px); }
+  }
+</style>
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">Court 01 / September 2026</p>
+    <h1>Badminton Attendance</h1>
+
+    <p class="section-label">Daily session</p>
+    <div class="date-row">
+      <input type="date" id="datePicker" />
+      <button type="button" id="todayBtn">Today</button>
+      <button type="button" id="clearBtn">Clear</button>
+      <button type="button" id="whatsappBtn">Send WhatsApp</button>
+    </div>
+    <p class="whatsapp-status" id="whatsappStatus" role="status"></p>
+
+    <p class="section-label">Monthly records</p>
+    <div class="export-row">
+      <input type="month" id="monthPicker" aria-label="Month to export" />
+      <button type="button" id="exportBtn">Export month to Excel</button>
+      <button type="button" id="monthlyWhatsappBtn">Share monthly analysis</button>
+    </div>
+
+    <p class="section-label">Shared costs</p>
+    <div class="expense-row">
+      <select id="expensePerson" aria-label="Court expense sponsor">
+        <option value="">All participants</option>
+      </select>
+      <input type="number" id="expenseInput" min="0" step="0.01" placeholder="Court booking expense" aria-label="Court booking expense" />
+      <button type="button" id="saveExpenseBtn">Save expense</button>
+    </div>
+
+    <div class="expense-row">
+      <select id="shuttlePerson" aria-label="Shuttle purchase sponsor">
+        <option value="">All participants</option>
+      </select>
+      <input type="number" id="shuttleInput" min="0" step="0.01" placeholder="Shuttle purchase" aria-label="Shuttle purchase" />
+      <button type="button" id="saveShuttleBtn">Save shuttle purchase</button>
+    </div>
+
+    <p class="section-label">Players on court</p>
+    <button type="button" id="saveParticipantsBtn">Save participant list</button>
+
+    <ul id="peopleList"></ul>
+
+    <p class="summary" id="summary"></p>
+
+    <section class="analysis" aria-labelledby="analysisTitle">
+      <h2 id="analysisTitle">Attendance analysis</h2>
+      <div class="analysis-grid">
+        <div class="metric"><strong id="sessionCount">0</strong><span>sessions</span></div>
+        <div class="metric"><strong id="markCount">0</strong><span>total participation</span></div>
+        <div class="metric"><strong id="averageCount">0</strong><span>participation / session</span></div>
+        <div class="metric"><strong id="expenseTotal">Rs 0.00</strong><span>total court expense</span></div>
+        <div class="metric"><strong id="unallocatedExpense">Rs 0.00</strong><span>unallocated expense</span></div>
+        <div class="metric"><strong id="shuttleExpenseTotal">Rs 0.00</strong><span>shuttle expense</span></div>
+      </div>
+      <p class="summary" id="courtSponsors">Court sponsors: None</p>
+      <p class="summary" id="shuttleSponsors">Shuttle sponsors: None</p>
+      <table>
+        <thead><tr><th>Player</th><th>Participation</th><th>Rate</th><th>Court amount owed</th><th>Shuttle amount owed</th><th>Total amount owed</th><th>Settle to sponsor(s)</th></tr></thead>
+        <tbody id="analysisRows"></tbody>
+      </table>
+      <div class="chart">
+        <h3>Daily participation by team member</h3>
+        <div id="participationChart" aria-label="Daily participation chart"></div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-swatch available"></span>Participated</span>
+          <span class="legend-item"><span class="legend-swatch"></span>Not participated</span>
+          <span class="legend-item"><span class="legend-swatch partial"></span>Value above 1</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const PEOPLE = ["AYAPPA", "BABA PRASAD", "GANESH", "HARI", "MURALI", "RK", "Raj", "Sukhdev", "SHASTRI", "SIDHU", "VINOD", "Saurav", "Hari Trifecta"];
+  const IMPORT_VERSION = "september-2026-sheet-v1";
+  const EXPENSE_UPDATE_VERSION = "september-2026-expense-340-v1";
+  const SHUTTLE_UPDATE_VERSION = "september-2026-shuttle-5750-v1";
+  const COURT_SPONSOR_UPDATE_VERSION = "september-2026-court-sponsor-murali-v1";
+  const SEPTEMBER_20_RESTORE_VERSION = "september-2026-20th-participants-restore-v1";
+  const SHUTTLE_ALL_PARTICIPANTS_UPDATE_VERSION = "shuttle-all-participants-zero-v1";
+  const IMPORTED_DATA = {
+    AYAPPA: [1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1],
+    "BABA PRASAD": [1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+    GANESH: [1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0],
+    HARI: [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    MURALI: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    RK: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0],
+    Raj: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    Sukhdev: [1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    SHASTRI: [1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    SIDHU: [2, 1, 1, 0, 0, 1, 0, 1, 2, 2, 1, 2, 2, 2, 1],
+    VINOD: [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0]
+  };
+  const API_BASE = "/api";
+
+  const datePicker = document.getElementById("datePicker");
+  const monthPicker = document.getElementById("monthPicker");
+  const expensePerson = document.getElementById("expensePerson");
+  const expenseInput = document.getElementById("expenseInput");
+  const shuttlePerson = document.getElementById("shuttlePerson");
+  const shuttleInput = document.getElementById("shuttleInput");
+  const peopleList = document.getElementById("peopleList");
+  const summary = document.getElementById("summary");
+  const whatsappStatus = document.getElementById("whatsappStatus");
+  const sessionCount = document.getElementById("sessionCount");
+  const markCount = document.getElementById("markCount");
+  const averageCount = document.getElementById("averageCount");
+  const expenseTotal = document.getElementById("expenseTotal");
+  const unallocatedExpense = document.getElementById("unallocatedExpense");
+  const shuttleExpenseTotal = document.getElementById("shuttleExpenseTotal");
+  const courtSponsors = document.getElementById("courtSponsors");
+  const shuttleSponsors = document.getElementById("shuttleSponsors");
+  const analysisRows = document.getElementById("analysisRows");
+  const participationChart = document.getElementById("participationChart");
+
+  const databaseReady = fetch(`${API_BASE}/health`).then(response => {
+    if (!response.ok) throw new Error("Shared database is unavailable");
+    return response.json();
+  });
+
+  async function apiRequest(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options
+    });
+    if (!response.ok) throw new Error(`Database request failed: ${response.status}`);
+    return response.status === 204 ? null : response.json();
+  }
+
+  function isParticipationRecord(record) {
+    return record.recordType !== "expense" && record.recordType !== "shuttle";
+  }
+
+  async function getMarks(date) {
+    return (await getAllRecords()).filter(record => record.date === date && isParticipationRecord(record));
+  }
+
+  async function setMark(date, name, isChecked) {
+    if (isChecked) {
+      await apiRequest("/records", { method: "POST", body: JSON.stringify({ id: `${date}:${name}`, date, name, recordType: "participation" }) });
+    } else {
+      await apiRequest(`/records/${encodeURIComponent(`${date}:${name}`)}`, { method: "DELETE" });
+    }
+  }
+
+  async function saveParticipantList(date) {
+    const selectedNames = new Set([...peopleList.querySelectorAll("input[type=checkbox]:checked")].map(box => box.dataset.name));
+    const records = (await getAllRecords()).filter(record => record.date === date && isParticipationRecord(record));
+    await Promise.all(records.map(record => apiRequest(`/records/${encodeURIComponent(record.id)}`, { method: "DELETE" })));
+    await apiRequest("/records/batch", { method: "POST", body: JSON.stringify([...selectedNames].map(name => ({ id: `${date}:${name}`, date, name, recordType: "participation" }))) });
+  }
+
+  async function getAllRecords() {
+    await databaseReady;
+    return apiRequest("/records");
+  }
+
+  function getLegacyLocalRecords() {
+    return new Promise(resolve => {
+      const request = indexedDB.open("badminton-attendance-2026");
+      request.onerror = () => resolve([]);
+      request.onsuccess = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains("marks")) {
+          resolve([]);
+          return;
+        }
+        const read = database.transaction("marks", "readonly").objectStore("marks").getAll();
+        read.onsuccess = () => resolve(read.result);
+        read.onerror = () => resolve([]);
+      };
+    });
+  }
+
+  async function migrateLocalRecords() {
+    const sharedRecords = await getAllRecords();
+    if (sharedRecords.length) return;
+    const localRecords = await getLegacyLocalRecords();
+    if (localRecords.length) {
+      await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(localRecords) });
+    }
+  }
+
+  async function getAllMarks() {
+    const records = await getAllRecords();
+    return records.filter(isParticipationRecord);
+  }
+
+  async function getExpense(date, person = expensePerson.value) {
+    const records = await getAllRecords();
+    return records.find(record => record.id === (person ? `expense:${date}:${person}` : `expense:${date}`))?.amount
+      ?? records.find(record => record.id === `expense:${date}`)?.amount
+      ?? "";
+  }
+
+  async function saveExpense(date, amount, person = expensePerson.value) {
+    const id = person ? `expense:${date}:${person}` : `expense:${date}`;
+    if (amount === "") return apiRequest(`/records/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return apiRequest("/records", { method: "POST", body: JSON.stringify({ id, date, amount: Number(amount), ...(person ? { sponsor: person } : {}), recordType: "expense" }) });
+  }
+
+  async function getShuttle(date, person = shuttlePerson.value) {
+    const records = await getAllRecords();
+    return records.find(record => record.id === (person ? `shuttle:${date}:${person}` : `shuttle:${date}`))?.amount
+      ?? records.find(record => record.id === `shuttle:${date}`)?.amount
+      ?? "";
+  }
+
+  async function saveShuttle(date, amount, person = shuttlePerson.value) {
+    const id = person ? `shuttle:${date}:${person}` : `shuttle:${date}`;
+    if (amount === "") return apiRequest(`/records/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return apiRequest("/records", { method: "POST", body: JSON.stringify({ id, date, amount: Number(amount), ...(person ? { sponsor: person } : {}), recordType: "shuttle" }) });
+  }
+
+  async function importSheetData() {
+    if (localStorage.getItem("badminton-import-version") === IMPORT_VERSION) return;
+    const records = await getAllRecords();
+    const existing = new Set(records.map(record => record.id));
+    const missing = [];
+    Object.entries(IMPORTED_DATA).forEach(([name, values]) => values.forEach((value, index) => {
+      if (value > 0) {
+        const day = String(index + 1).padStart(2, "0");
+        const id = `2026-09-${day}:${name}`;
+        if (!existing.has(id)) missing.push({ id, date: `2026-09-${day}`, name, value, recordType: "participation" });
+      }
+    }));
+    if (missing.length) await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(missing) });
+    localStorage.setItem("badminton-import-version", IMPORT_VERSION);
+  }
+
+  async function updateSeptemberExpenses() {
+    if (localStorage.getItem("badminton-expense-update-version") === EXPENSE_UPDATE_VERSION) return;
+    const records = await getAllRecords();
+    const missing = [];
+    for (let day = 1; day <= 19; day++) {
+      const date = `2026-09-${String(day).padStart(2, "0")}`;
+      if (!records.some(record => record.id === `expense:${date}`)) missing.push({ id: `expense:${date}`, date, amount: 340, recordType: "expense" });
+    }
+    if (missing.length) await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(missing) });
+    localStorage.setItem("badminton-expense-update-version", EXPENSE_UPDATE_VERSION);
+  }
+
+  async function updateSeptemberShuttle() {
+    if (localStorage.getItem("badminton-shuttle-update-version") === SHUTTLE_UPDATE_VERSION) return;
+    const records = await getAllRecords();
+    if (!records.some(record => record.recordType === "shuttle" && record.date === "2026-09-01")) await saveShuttle("2026-09-01", "5750");
+    localStorage.setItem("badminton-shuttle-update-version", SHUTTLE_UPDATE_VERSION);
+  }
+
+  async function updateSeptemberCourtSponsor() {
+    if (localStorage.getItem("badminton-court-sponsor-update-version") === COURT_SPONSOR_UPDATE_VERSION) return;
+    const records = await getAllRecords();
+    const updates = records
+      .filter(record => record.recordType === "expense" && record.date.startsWith("2026-09-") && !record.sponsor)
+      .map(record => ({ ...record, sponsor: "MURALI" }));
+    if (updates.length) await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(updates) });
+    localStorage.setItem("badminton-court-sponsor-update-version", COURT_SPONSOR_UPDATE_VERSION);
+  }
+
+  async function restoreSeptember20Participants() {
+    if (localStorage.getItem("badminton-september-20-restore-version") === SEPTEMBER_20_RESTORE_VERSION) return;
+    const names = ["HARI", "Hari Trifecta", "RK", "SIDHU"];
+    const records = await getAllRecords();
+    const existing = new Set(records.map(record => record.id));
+    const missing = names.filter(name => !existing.has(`2026-09-20:${name}`)).map(name => ({ id: `2026-09-20:${name}`, date: "2026-09-20", name, recordType: "participation" }));
+    if (missing.length) await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(missing) });
+    localStorage.setItem("badminton-september-20-restore-version", SEPTEMBER_20_RESTORE_VERSION);
+  }
+
+  async function normalizeAllParticipantsShuttleRecords() {
+    if (localStorage.getItem("badminton-shuttle-all-participants-version") === SHUTTLE_ALL_PARTICIPANTS_UPDATE_VERSION) return;
+    const records = (await getAllRecords()).filter(record => record.recordType === "shuttle" && (!record.sponsor || record.sponsor === "All participants"));
+    if (!records.length) {
+      localStorage.setItem("badminton-shuttle-all-participants-version", SHUTTLE_ALL_PARTICIPANTS_UPDATE_VERSION);
+      return;
+    }
+    const updates = records.map(record => ({ ...record, sponsor: record.sponsor || "All participants" }));
+    await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(updates) });
+    localStorage.setItem("badminton-shuttle-all-participants-version", SHUTTLE_ALL_PARTICIPANTS_UPDATE_VERSION);
+  }
+
+  async function removeObsoleteZeroShuttleRecords() {
+    const records = await getAllRecords();
+    const sponsorDates = new Set(records
+      .filter(record => record.recordType === "shuttle" && record.sponsor && record.sponsor !== "All participants" && record.amount > 0)
+      .map(record => record.date));
+    const obsolete = records.filter(record => record.recordType === "shuttle" && record.sponsor === "All participants" && record.amount === 0 && sponsorDates.has(record.date));
+    await Promise.all(obsolete.map(record => apiRequest(`/records/${encodeURIComponent(record.id)}`, { method: "DELETE" })));
+  }
+
+  async function clearDate(date) {
+    const recordsForDate = (await getAllRecords()).filter(record => record.date === date);
+    await Promise.all(recordsForDate.map(record => apiRequest(`/records/${encodeURIComponent(record.id)}`, { method: "DELETE" })));
+  }
+
+  function escapeExcel(value) {
+    return String(value).replace(/[&<>]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[character]));
+  }
+
+  async function exportMonth() {
+    const month = monthPicker.value;
+    if (!month) return;
+
+    const records = await getAllRecords();
+    const marks = records.filter(isParticipationRecord);
+    const marksByDate = {};
+    marks.filter(mark => mark.date.startsWith(month)).forEach(mark => {
+      (marksByDate[mark.date] ||= new Set()).add(mark.name);
+    });
+    records.filter(record => record.recordType === "expense" && record.date.startsWith(month)).forEach(record => {
+      marksByDate[record.date] ||= new Set();
+    });
+    records.filter(record => record.recordType === "shuttle" && record.date.startsWith(month)).forEach(record => {
+      marksByDate[record.date] ||= new Set();
+    });
+    const { shares } = calculateExpenseShares(records);
+    const monthlyShuttle = calculateMonthlyShuttleShares(records, month);
+    const rows = Object.keys(marksByDate).sort().map(date => {
+      const cells = PEOPLE.map(name => marksByDate[date].has(name) ? "Yes" : "No");
+      const expense = records.find(record => record.date === date && record.recordType === "expense")?.amount ?? "";
+      const shuttleRecords = records.filter(record => record.date === date && record.recordType === "shuttle");
+      const shuttle = shuttleRecords.reduce((sum, record) => sum + record.amount, 0) || "";
+      const shuttleSponsor = shuttleRecords.map(record => record.sponsor).filter(Boolean).join(", ");
+      const sponsor = records.find(record => record.date === date && record.recordType === "expense")?.sponsor ?? "";
+      const participantCount = cells.filter(cell => cell === "Yes").length;
+      const share = participantCount && expense !== "" ? Number(expense) / participantCount : "";
+      return `<tr><td>${date}</td>${cells.map(cell => `<td>${cell === "Yes" ? "Available" : "Not available"}</td>`).join("")}<td>${participantCount}</td><td>${escapeExcel(expense)}</td><td>${share === "" ? "" : share.toFixed(2)}</td><td>${escapeExcel(shuttle)}</td><td>${escapeExcel(shuttleSponsor)}</td><td>${escapeExcel(sponsor)}</td></tr>`;
+    });
+    const totalOwedByPerson = Object.fromEntries(PEOPLE.map(name => [name, shares[name] + monthlyShuttle.shares[name]]));
+    const settlementAllocations = calculatePrioritySettlements(records, month, totalOwedByPerson);
+    const summaryRows = PEOPLE.map(name => {
+      const totalOwed = shares[name] + monthlyShuttle.shares[name];
+      return `<tr><td>${escapeExcel(name)}</td><td>${monthlyShuttle.counts[name]}</td><td>Rs ${shares[name].toFixed(2)}</td><td>Rs ${monthlyShuttle.shares[name].toFixed(2)}</td><td>Rs ${totalOwed.toFixed(2)}</td><td>${escapeExcel(settlementAllocations[name])}</td></tr>`;
+    }).join("");
+    const table = `<table><tr><th>Date</th>${PEOPLE.map(name => `<th>${escapeExcel(name)}</th>`).join("")}<th>Total participants</th><th>Court booking expense (Rs)</th><th>Share per participant (Rs)</th><th>Shuttle purchase (Rs)</th><th>Shuttle sponsor</th><th>Court sponsor</th></tr>${rows.join("")}</table>`;
+    const summaryTable = `<h3>Overall amounts by person</h3><table><tr><th>Player</th><th>Participation in ${escapeExcel(month)}</th><th>Court amount owed (Rs)</th><th>Shuttle amount owed (Rs), participation &gt; 5</th><th>Total amount owed (Rs)</th><th>Settle to sponsor(s)</th></tr>${summaryRows}</table>`;
+    const documentHtml = `<html><head><meta charset="UTF-8"></head><body><h2>Badminton Attendance - ${escapeExcel(month)}</h2>${table}${summaryTable}</body></html>`;
+    const blob = new Blob([documentHtml], { type: "application/vnd.ms-excel" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `badminton-attendance-${month}.xls`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  async function shareMonthlyAnalysis() {
+    const month = monthPicker.value;
+    if (!month) return;
+    const records = await getAllRecords();
+    const monthRecords = records.filter(record => record.date.startsWith(month));
+    const marks = monthRecords.filter(isParticipationRecord);
+    const sessions = [...new Set(marks.map(mark => mark.date))].sort();
+    const counts = Object.fromEntries(PEOPLE.map(name => [name, 0]));
+    marks.forEach(mark => counts[mark.name]++);
+    const courtExpenses = monthRecords.filter(record => record.recordType === "expense");
+    const shuttleExpenses = monthRecords.filter(record => record.recordType === "shuttle");
+    const courtTotal = courtExpenses.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+    const shuttleTotal = shuttleExpenses.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+    const average = sessions.length ? (marks.length / sessions.length).toFixed(1) : "0";
+    const monthLabel = new Date(`${month}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const { shares: courtShares } = calculateExpenseShares(monthRecords);
+    const monthlyShuttle = calculateMonthlyShuttleShares(monthRecords, month);
+    const totalOwedByPerson = Object.fromEntries(PEOPLE.map(name => [name, courtShares[name] + monthlyShuttle.shares[name]]));
+    const settlementAllocations = calculatePrioritySettlements(monthRecords, month, totalOwedByPerson);
+    const attendanceTable = [
+      "Player          Attn Rate   Court    Shuttle  Total",
+      "---------------  ---- -----  -------  -------  -------",
+      ...PEOPLE.map(name => {
+        const rate = sessions.length ? Math.round(counts[name] / sessions.length * 100) : 0;
+        const label = name.padEnd(15).slice(0, 15);
+        return `${label} ${String(counts[name]).padStart(4)} ${String(`${rate}%`).padStart(5)}  ${courtShares[name].toFixed(2).padStart(7)}  ${monthlyShuttle.shares[name].toFixed(2).padStart(7)}  ${totalOwedByPerson[name].toFixed(2).padStart(7)}`;
+      })
+    ].join("\n");
+    const settlementTable = [
+      "Player          Settle to sponsor(s)",
+      "--------------- ----------------------",
+      ...PEOPLE.map(name => `${name.padEnd(15).slice(0, 15)} ${settlementAllocations[name]}`)
+    ].join("\n");
+    const courtSponsors = formatSponsorAmounts(records, "expense", month);
+    const shuttleSponsors = formatSponsorAmounts(records, "shuttle", month);
+    const message = [
+      `Badminton attendance analysis - ${monthLabel}`,
+      `Sessions: ${sessions.length}`,
+      `Total participation: ${marks.length}`,
+      `Average participation per session: ${average}`,
+      `Court expense: Rs ${courtTotal.toFixed(2)}`,
+      `Shuttle purchase: Rs ${shuttleTotal.toFixed(2)}`,
+      `Court sponsors: ${courtSponsors.length ? courtSponsors.join(", ") : "None"}`,
+      `Shuttle sponsors: ${shuttleSponsors.length ? shuttleSponsors.join(", ") : "None"}`,
+      "",
+      "Attendance and amounts (Rs):",
+      "```",
+      attendanceTable,
+      "```",
+      "Sponsor settlement allocation:",
+      "```",
+      settlementTable,
+      "```"
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch {
+    }
+    whatsappStatus.textContent = "Monthly analysis prepared and WhatsApp launch requested. Confirm the recipient and press Send.";
+    window.location.href = `whatsapp://send?text=${encodeURIComponent(message)}`;
+  }
+
+  function todayISO() {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+
+  function calculateExpenseShares(records) {
+    const marks = records.filter(isParticipationRecord);
+    const shares = Object.fromEntries(PEOPLE.map(name => [name, 0]));
+    let totalExpense = 0;
+    let unallocated = 0;
+    records.filter(record => record.recordType === "expense").forEach(expense => {
+      const participants = new Set(marks.filter(mark => mark.date === expense.date).map(mark => mark.name));
+      totalExpense += expense.amount;
+      if (expense.person) shares[expense.person] += expense.amount;
+      else if (participants.size) participants.forEach(name => { shares[name] += expense.amount / participants.size; });
+      else unallocated += expense.amount;
+    });
+    return { shares, totalExpense, unallocated };
+  }
+
+  function calculateMonthlyShuttleShares(records, month) {
+    const marks = records.filter(isParticipationRecord);
+    const counts = Object.fromEntries(PEOPLE.map(name => [name, 0]));
+    marks.filter(mark => mark.date.startsWith(month)).forEach(mark => counts[mark.name]++);
+    const total = records
+      .filter(record => record.recordType === "shuttle" && record.date.startsWith(month))
+      .reduce((sum, record) => sum + record.amount, 0);
+    const eligible = PEOPLE.filter(name => counts[name] > 5);
+    const shares = Object.fromEntries(PEOPLE.map(name => [name, eligible.includes(name) ? total / eligible.length : 0]));
+    return { counts, shares, total, eligible };
+  }
+
+  function formatSponsorAmounts(records, recordType, month) {
+    const totals = {};
+    records
+      .filter(record => record.recordType === recordType && record.date.startsWith(month) && record.amount > 0)
+      .forEach(record => {
+        const sponsor = record.sponsor || "All participants";
+        totals[sponsor] = (totals[sponsor] || 0) + record.amount;
+      });
+    return Object.entries(totals).map(([sponsor, amount]) => `${sponsor} (Rs ${amount.toFixed(2)})`);
+  }
+
+  function calculatePrioritySettlements(records, month, totalOwedByPerson) {
+    const totals = {};
+    records
+      .filter(record => (record.recordType === "expense" || record.recordType === "shuttle") && record.date.startsWith(month) && record.amount > 0)
+      .forEach(record => {
+        const sponsor = record.sponsor || "All participants";
+        totals[sponsor] = (totals[sponsor] || 0) + record.amount;
+      });
+    const remaining = Object.fromEntries(Object.entries(totals).sort((first, second) => second[1] - first[1]));
+    const allocations = {};
+    PEOPLE.forEach(name => {
+      let owed = totalOwedByPerson[name];
+      const parts = [];
+      Object.keys(remaining).forEach(sponsor => {
+        if (owed <= 0 || remaining[sponsor] <= 0) return;
+        const amount = Math.min(owed, remaining[sponsor]);
+        remaining[sponsor] -= amount;
+        owed -= amount;
+        parts.push(`${sponsor}: Rs ${amount.toFixed(2)}`);
+      });
+      allocations[name] = parts.length ? parts.join(", ") : "None";
+    });
+    return allocations;
+  }
+
+  function monthDates(month) {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const days = new Date(year, monthNumber, 0).getDate();
+    return Array.from({ length: days }, (_, index) => `${month}-${String(index + 1).padStart(2, "0")}`);
+  }
+
+  function renderParticipationChart(records, month) {
+    const dates = monthDates(month);
+    const marks = records.filter(isParticipationRecord);
+    const values = new Map(marks.map(mark => [`${mark.date}:${mark.name}`, mark.value || 1]));
+    participationChart.textContent = "";
+    const grid = document.createElement("div");
+    grid.className = "chart-grid";
+    grid.style.gridTemplateColumns = `minmax(100px, 1.4fr) repeat(${dates.length}, minmax(22px, 1fr))`;
+
+    const headerName = document.createElement("div");
+    headerName.className = "chart-cell header";
+    headerName.textContent = "Player";
+    grid.append(headerName);
+    dates.forEach(date => {
+      const cell = document.createElement("div");
+      cell.className = "chart-cell header";
+      cell.textContent = date.slice(-2);
+      cell.title = date;
+      grid.append(cell);
+    });
+
+    PEOPLE.forEach(name => {
+      const nameCell = document.createElement("div");
+      nameCell.className = "chart-cell name";
+      nameCell.textContent = name;
+      nameCell.title = name;
+      grid.append(nameCell);
+      dates.forEach(date => {
+        const value = values.get(`${date}:${name}`) || 0;
+        const cell = document.createElement("div");
+        cell.className = `chart-cell${value ? value > 1 ? " partial" : " available" : ""}`;
+        cell.title = `${name} - ${date}: ${value ? `participation ${value}` : "not participated"}`;
+        grid.append(cell);
+      });
+    });
+    participationChart.append(grid);
+  }
+
+  async function renderAnalysis() {
+    const records = await getAllRecords();
+    const marks = records.filter(isParticipationRecord);
+    const { shares, totalExpense, unallocated } = calculateExpenseShares(records);
+    const sessions = new Set(marks.map(mark => mark.date));
+    const counts = Object.fromEntries(PEOPLE.map(name => [name, 0]));
+    const monthlyShuttle = calculateMonthlyShuttleShares(records, monthPicker.value);
+    const totalOwedByPerson = Object.fromEntries(PEOPLE.map(name => [name, shares[name] + monthlyShuttle.shares[name]]));
+    const settlementAllocations = calculatePrioritySettlements(records, monthPicker.value, totalOwedByPerson);
+    const courtSponsorNames = formatSponsorAmounts(records, "expense", monthPicker.value);
+    const sponsorNames = formatSponsorAmounts(records, "shuttle", monthPicker.value);
+    marks.forEach(mark => counts[mark.name]++);
+    const sessionTotal = sessions.size;
+
+    sessionCount.textContent = sessionTotal;
+    markCount.textContent = marks.length;
+    averageCount.textContent = sessionTotal ? (marks.length / sessionTotal).toFixed(1) : "0";
+    expenseTotal.textContent = `Rs ${totalExpense.toFixed(2)}`;
+    unallocatedExpense.textContent = `Rs ${unallocated.toFixed(2)}`;
+    shuttleExpenseTotal.textContent = `Rs ${monthlyShuttle.total.toFixed(2)}`;
+    courtSponsors.textContent = `Court sponsors: ${courtSponsorNames.length ? courtSponsorNames.join(", ") : "None"}`;
+    shuttleSponsors.textContent = `Shuttle sponsors: ${sponsorNames.length ? sponsorNames.join(", ") : "None"}`;
+    analysisRows.textContent = "";
+    PEOPLE.forEach(name => {
+      const row = document.createElement("tr");
+      const totalOwed = shares[name] + monthlyShuttle.shares[name];
+      row.innerHTML = `<td>${name}</td><td>${counts[name]}</td><td>${sessionTotal ? Math.round(counts[name] / sessionTotal * 100) : 0}%</td><td>Rs ${shares[name].toFixed(2)}</td><td>Rs ${monthlyShuttle.shares[name].toFixed(2)}</td><td>Rs ${totalOwed.toFixed(2)}</td><td>${settlementAllocations[name]}</td>`;
+      analysisRows.append(row);
+    });
+    renderParticipationChart(records, monthPicker.value);
+  }
+
+  async function render() {
+    const date = datePicker.value;
+    const checked = new Set((await getMarks(date)).map(mark => mark.name));
+    const dateRecords = (await getAllRecords()).filter(record => record.date === date);
+    const courtSponsor = dateRecords.find(record => record.recordType === "expense" && record.sponsor)?.sponsor || "";
+    const shuttleSponsor = dateRecords.find(record => record.recordType === "shuttle" && record.sponsor)?.sponsor || "";
+    expensePerson.value = courtSponsor;
+    shuttlePerson.value = shuttleSponsor;
+    expenseInput.value = await getExpense(date);
+    shuttleInput.value = await getShuttle(date);
+    peopleList.textContent = "";
+
+    PEOPLE.forEach(name => {
+      const li = document.createElement("li");
+      const label = document.createElement("label");
+      const box = document.createElement("input");
+      const mark = document.createElement("span");
+
+      box.type = "checkbox";
+      box.dataset.name = name;
+      box.checked = checked.has(name);
+      box.disabled = !date;
+      box.addEventListener("change", async () => {
+        await setMark(date, name, box.checked);
+        await render();
+      });
+
+      label.append(box, document.createTextNode(name));
+      mark.className = "mark";
+      mark.textContent = box.checked ? "\u2714" : "";
+      li.className = box.checked ? "checked" : "";
+      li.append(label, mark);
+      peopleList.append(li);
+    });
+
+    summary.textContent = date
+      ? `${checked.size} of ${PEOPLE.length} participated on ${date}`
+      : "Pick a date to record availability.";
+    await renderAnalysis();
+  }
+
+  function populateExpensePeople() {
+    PEOPLE.forEach(name => {
+      const expenseOption = document.createElement("option");
+      expenseOption.value = name;
+      expenseOption.textContent = name;
+      expensePerson.append(expenseOption);
+
+      const shuttleOption = document.createElement("option");
+      shuttleOption.value = name;
+      shuttleOption.textContent = name;
+      shuttlePerson.append(shuttleOption);
+    });
+  }
+
+  document.getElementById("todayBtn").addEventListener("click", () => {
+    datePicker.value = todayISO();
+    render();
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", async () => {
+    await clearDate(datePicker.value);
+    await render();
+  });
+
+  document.getElementById("saveParticipantsBtn").addEventListener("click", async () => {
+    if (!datePicker.value) return;
+    await saveParticipantList(datePicker.value);
+    whatsappStatus.textContent = `Participant list saved for ${datePicker.value}.`;
+    await render();
+  });
+
+  document.getElementById("whatsappBtn").addEventListener("click", async () => {
+    const date = datePicker.value;
+    if (!date) return;
+    const participants = (await getMarks(date)).map(mark => mark.name);
+    const message = participants.length
+      ? `Badminton participation for ${date}:\n${participants.map((name, index) => `${index + 1}. ${name}`).join("\n")}`
+      : `No participants recorded for badminton on ${date}.`;
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch {
+    }
+    whatsappStatus.textContent = "Message prepared and WhatsApp launch requested. Confirm the recipient and press Send; this page cannot confirm external app delivery.";
+    window.location.href = `whatsapp://send?text=${encodeURIComponent(message)}`;
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", exportMonth);
+  document.getElementById("monthlyWhatsappBtn").addEventListener("click", shareMonthlyAnalysis);
+
+  document.getElementById("saveExpenseBtn").addEventListener("click", async () => {
+    if (!datePicker.value) return;
+    await saveExpense(datePicker.value, expenseInput.value);
+    expenseInput.value = await getExpense(datePicker.value);
+  });
+
+  expensePerson.addEventListener("change", async () => {
+    expenseInput.value = await getExpense(datePicker.value);
+  });
+
+  shuttlePerson.addEventListener("change", async () => {
+    shuttleInput.value = await getShuttle(datePicker.value);
+  });
+
+  document.getElementById("saveShuttleBtn").addEventListener("click", async () => {
+    if (!datePicker.value) return;
+    await saveShuttle(datePicker.value, shuttleInput.value);
+    shuttleInput.value = await getShuttle(datePicker.value);
+    await renderAnalysis();
+  });
+
+  datePicker.addEventListener("change", render);
+  monthPicker.addEventListener("change", renderAnalysis);
+  datePicker.value = todayISO();
+  monthPicker.value = todayISO().slice(0, 7);
+  populateExpensePeople();
+  databaseReady.then(migrateLocalRecords).then(importSheetData).then(updateSeptemberExpenses).then(updateSeptemberShuttle).then(updateSeptemberCourtSponsor).then(restoreSeptember20Participants).then(normalizeAllParticipantsShuttleRecords).then(removeObsoleteZeroShuttleRecords).then(render).catch(() => {
+    summary.textContent = "The attendance database could not be opened.";
+  });
+</script>
+</body>
+</html>
