@@ -9,8 +9,8 @@ import sqlite3
 
 ROOT = Path(__file__).parent
 DATABASE = ROOT / "badminton.sqlite3"
-HOST = "127.0.0.1"
-PORT = 8000
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8000"))
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
 USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
@@ -199,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if not USE_SUPABASE:
         connection().close()
-    print(f"Badminton Attendance shared database: http://localhost:{PORT}")
+    print(f"Badminton Attendance shared database: http://{HOST}:{PORT}")
     print(f"Database backend: {'Supabase' if USE_SUPABASE else 'SQLite'}")
     if USE_SUPABASE:
         print(f"Supabase URL: {SUPABASE_URL}")
