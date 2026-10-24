@@ -194,10 +194,32 @@
     .date-row > *, .export-row > *, .expense-row > * { flex: 1 1 100%; }
     .analysis-grid { grid-template-columns: repeat(5, 145px); }
   }
+  [hidden] { display: none !important; }
+  body.read-only .admin-only { display: none; }
+  .session-bar { display: flex; justify-content: space-between; align-items: center; gap: .65rem; flex-wrap: wrap; margin: 0 0 .5rem; color: var(--muted); font-size: .82rem; }
+  .login-overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(234,246,241,.97); }
+  .login-card { display: grid; gap: .7rem; width: 100%; max-width: 340px; padding: 1.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  .login-card h2 { margin: 0 0 .3rem; color: var(--teal-dark); }
+  .login-card input { min-height: 42px; padding: .65rem .75rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
+  .login-card button[type="submit"] { color: #fff; background: var(--teal); border-color: var(--teal); }
+  .login-error { min-height: 1.2em; margin: 0; color: var(--coral); font-size: .82rem; }
 </style>
 </head>
 <body>
+  <div class="login-overlay" id="loginOverlay" hidden>
+    <form class="login-card" id="loginForm">
+      <h2>Sign in</h2>
+      <input type="text" id="loginUser" autocomplete="username" placeholder="User name" aria-label="User name" required />
+      <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Password" aria-label="Password" required />
+      <button type="submit">Sign in</button>
+      <p class="login-error" id="loginError" role="alert"></p>
+    </form>
+  </div>
   <main class="card">
+    <div class="session-bar">
+      <span id="sessionUser"></span>
+      <button type="button" id="logoutBtn">Sign out</button>
+    </div>
     <p class="eyebrow" id="eyebrowLabel">Court 01 Attendance</p>
     <h1>Badminton Attendance</h1>
 
@@ -205,7 +227,7 @@
     <div class="date-row">
       <input type="date" id="datePicker" />
       <button type="button" id="todayBtn">Today</button>
-      <button type="button" id="clearBtn">Clear</button>
+      <button type="button" id="clearBtn" class="admin-only">Clear</button>
       <button type="button" id="whatsappBtn">Send WhatsApp</button>
     </div>
     <p class="whatsapp-status" id="whatsappStatus" role="status"></p>
@@ -223,7 +245,7 @@
         <option value="">All participants</option>
       </select>
       <input type="number" id="expenseInput" min="0" step="0.01" placeholder="Court booking expense" aria-label="Court booking expense" />
-      <button type="button" id="saveExpenseBtn">Save expense</button>
+      <button type="button" id="saveExpenseBtn" class="admin-only">Save expense</button>
     </div>
 
     <div class="expense-row">
@@ -231,11 +253,11 @@
         <option value="">All participants</option>
       </select>
       <input type="number" id="shuttleInput" min="0" step="0.01" placeholder="Shuttle purchase" aria-label="Shuttle purchase" />
-      <button type="button" id="saveShuttleBtn">Save shuttle purchase</button>
+      <button type="button" id="saveShuttleBtn" class="admin-only">Save shuttle purchase</button>
     </div>
 
     <p class="section-label">Players on court</p>
-    <button type="button" id="saveParticipantsBtn">Save participant list</button>
+    <button type="button" id="saveParticipantsBtn" class="admin-only">Save participant list</button>
 
     <ul id="peopleList"></ul>
 
@@ -291,6 +313,15 @@
     VINOD: [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0]
   };
   const API_BASE = "/api";
+  const AUTH_KEY = "badminton-auth";
+  let auth = JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+  const isAdmin = () => auth?.role === "admin";
+  const loginOverlay = document.getElementById("loginOverlay");
+  const loginForm = document.getElementById("loginForm");
+  const loginUser = document.getElementById("loginUser");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginError = document.getElementById("loginError");
+  const sessionUser = document.getElementById("sessionUser");
 
   const datePicker = document.getElementById("datePicker");
   const monthPicker = document.getElementById("monthPicker");
@@ -319,9 +350,10 @@
 
   async function apiRequest(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
-      headers: { "Content-Type": "application/json" },
-      ...options
+      ...options,
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: `Bearer ${auth.token}` } : {}) }
     });
+    if (response.status === 401) signOut();
     if (!response.ok) throw new Error(`Database request failed: ${response.status}`);
     return response.status === 204 ? null : response.json();
   }
@@ -782,7 +814,7 @@
       box.type = "checkbox";
       box.dataset.name = name;
       box.checked = checked.has(name);
-      box.disabled = !date;
+      box.disabled = !date || !isAdmin();
       box.addEventListener("change", async () => {
         await setMark(date, name, box.checked);
         await render();
@@ -888,9 +920,49 @@
   datePicker.value = todayISO();
   monthPicker.value = todayISO().slice(0, 7);
   populateExpensePeople();
-  databaseReady.then(migrateLocalRecords).then(importSheetData).then(updateSeptemberExpenses).then(updateSeptemberShuttle).then(updateSeptemberCourtSponsor).then(restoreSeptember20Participants).then(normalizeAllParticipantsShuttleRecords).then(removeObsoleteZeroShuttleRecords).then(render).catch(() => {
-    summary.textContent = "The attendance database could not be opened.";
+
+  function signOut() {
+    auth = null;
+    localStorage.removeItem(AUTH_KEY);
+    loginOverlay.hidden = false;
+    loginUser.focus();
+  }
+
+  function start() {
+    loginOverlay.hidden = true;
+    document.body.classList.toggle("read-only", !isAdmin());
+    sessionUser.textContent = `Signed in as ${auth.username} (${isAdmin() ? "read & write" : "read only"})`;
+    expenseInput.disabled = !isAdmin();
+    shuttleInput.disabled = !isAdmin();
+    let ready = databaseReady;
+    // One-time data fixes write to the database, so only an admin session runs them.
+    if (isAdmin()) ready = ready.then(migrateLocalRecords).then(importSheetData).then(updateSeptemberExpenses).then(updateSeptemberShuttle).then(updateSeptemberCourtSponsor).then(restoreSeptember20Participants).then(normalizeAllParticipantsShuttleRecords).then(removeObsoleteZeroShuttleRecords);
+    ready.then(render).catch(() => {
+      summary.textContent = "The attendance database could not be opened.";
+    });
+  }
+
+  loginForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    loginError.textContent = "";
+    const response = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: loginUser.value.trim(), password: loginPassword.value })
+    });
+    loginPassword.value = "";
+    if (!response.ok) {
+      loginError.textContent = "Invalid user name or password.";
+      return;
+    }
+    auth = await response.json();
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+    start();
   });
+
+  document.getElementById("logoutBtn").addEventListener("click", signOut);
+
+  if (auth) start(); else signOut();
 </script>
 </body>
 </html>

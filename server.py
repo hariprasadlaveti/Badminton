@@ -1,5 +1,9 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
+import hashlib
+import hmac
 import os
+import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
@@ -14,6 +18,45 @@ PORT = int(os.environ.get("PORT", "8000"))
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
 USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "")
+# user name -> (env var holding its password, role)
+USERS = {"admin": ("ADMIN_PASSWORD", "admin"), "user": ("USER_PASSWORD", "read")}
+TOKEN_TTL_SECONDS = 7 * 24 * 3600
+
+
+def b64encode(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def sign(payload):
+    return b64encode(hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).digest())
+
+
+def check_login(username, password):
+    entry = USERS.get(username)
+    if not entry or not AUTH_SECRET:
+        return None
+    expected = os.environ.get(entry[0], "")
+    if not expected or not hmac.compare_digest(password.encode(), expected.encode()):
+        return None
+    return entry[1]
+
+
+def issue_token(username, role):
+    payload = b64encode(json.dumps({"u": username, "r": role, "exp": int(time.time()) + TOKEN_TTL_SECONDS}).encode())
+    return f"{payload}.{sign(payload)}"
+
+
+def verify_token(token):
+    if not AUTH_SECRET or "." not in token:
+        return None
+    payload, signature = token.rsplit(".", 1)
+    if not hmac.compare_digest(signature, sign(payload)):
+        return None
+    data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    if data.get("exp", 0) < time.time():
+        return None
+    return data.get("r")
 
 
 def record_to_row(record):
@@ -149,16 +192,29 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
+
+    def require_role(self, admin=False):
+        header = self.headers.get("Authorization", "")
+        role = verify_token(header[7:]) if header.startswith("Bearer ") else None
+        if role is None:
+            self.send_json(401, {"error": "Sign in required"})
+            return False
+        if admin and role != "admin":
+            self.send_json(403, {"error": "Read-only user"})
+            return False
+        return True
 
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/api/records":
-            self.send_json(200, get_records())
+            if self.require_role():
+                self.send_json(200, get_records())
             return
         if path == "/api/health":
-            self.send_json(200, {"ok": True, "database": "supabase" if USE_SUPABASE else DATABASE.name})
+            auth_ready = bool(AUTH_SECRET and os.environ.get("ADMIN_PASSWORD") and os.environ.get("USER_PASSWORD"))
+            self.send_json(200, {"ok": True, "database": "supabase" if USE_SUPABASE else DATABASE.name, "auth": auth_ready})
             return
         if path == "/" or path == "/index.html":
             content = (ROOT / "index.html").read_bytes()
@@ -172,10 +228,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        length = int(self.headers.get("Content-Length", "0"))
+        if path == "/api/login":
+            credentials = json.loads(self.rfile.read(length) or "{}")
+            username = str(credentials.get("username", ""))
+            role = check_login(username, str(credentials.get("password", "")))
+            if role is None:
+                self.send_json(401, {"error": "Invalid user name or password"})
+                return
+            self.send_json(200, {"token": issue_token(username, role), "role": role, "username": username})
+            return
         if path not in ("/api/records", "/api/records/batch"):
             self.send_error(404)
             return
-        length = int(self.headers.get("Content-Length", "0"))
+        if not self.require_role(admin=True):
+            return
         payload = json.loads(self.rfile.read(length) or "{}")
         records = payload if isinstance(payload, list) else [payload]
         for record in records:
@@ -187,6 +254,8 @@ class Handler(BaseHTTPRequestHandler):
         prefix = "/api/records/"
         if not path.startswith(prefix):
             self.send_error(404)
+            return
+        if not self.require_role(admin=True):
             return
         record_id = unquote(path[len(prefix):])
         delete_record(record_id)
