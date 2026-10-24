@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -9,7 +10,8 @@ import server  # noqa: E402
 class handler(server.Handler):
     def _run(self, action):
         if not server.USE_SUPABASE:
-            self.send_json(500, {"ok": False, "error": "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set in Vercel"})
+            present = {name: bool(os.environ.get(name, "").strip()) for name in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_KEY")}
+            self.send_json(500, {"ok": False, "error": "Supabase env vars missing", "present": present, "vercel_env": os.environ.get("VERCEL_ENV")})
             return
         try:
             action()
