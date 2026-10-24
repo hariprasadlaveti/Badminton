@@ -86,7 +86,7 @@ def connection():
 
 
 def record_from_row(row):
-    return record_from_mapping(row)
+    return record_from_mapping(dict(row))
 
 
 def get_records():

@@ -198,7 +198,7 @@
 </head>
 <body>
   <main class="card">
-    <p class="eyebrow">Court 01 / September 2026</p>
+    <p class="eyebrow" id="eyebrowLabel">Court 01 Attendance</p>
     <h1>Badminton Attendance</h1>
 
     <p class="section-label">Daily session</p>
@@ -433,7 +433,8 @@
     const missing = [];
     for (let day = 1; day <= 19; day++) {
       const date = `2026-09-${String(day).padStart(2, "0")}`;
-      if (!records.some(record => record.id === `expense:${date}`)) missing.push({ id: `expense:${date}`, date, amount: 340, recordType: "expense" });
+      const dayHasExpense = records.some(record => record.recordType === "expense" && record.date === date);
+      if (!dayHasExpense) missing.push({ id: `expense:${date}`, date, amount: 340, recordType: "expense" });
     }
     if (missing.length) await apiRequest("/records/batch", { method: "POST", body: JSON.stringify(missing) });
     localStorage.setItem("badminton-expense-update-version", EXPENSE_UPDATE_VERSION);
@@ -512,7 +513,8 @@
     records.filter(record => record.recordType === "shuttle" && record.date.startsWith(month)).forEach(record => {
       marksByDate[record.date] ||= new Set();
     });
-    const { shares } = calculateExpenseShares(records);
+    const monthRecords = records.filter(record => record.date.startsWith(month));
+    const { shares } = calculateExpenseShares(monthRecords);
     const monthlyShuttle = calculateMonthlyShuttleShares(records, month);
     const rows = Object.keys(marksByDate).sort().map(date => {
       const cells = PEOPLE.map(name => marksByDate[date].has(name) ? "Yes" : "No");
@@ -718,18 +720,28 @@
   }
 
   async function renderAnalysis() {
+    const selectedMonth = monthPicker.value;
     const records = await getAllRecords();
-    const marks = records.filter(isParticipationRecord);
-    const { shares, totalExpense, unallocated } = calculateExpenseShares(records);
+    const monthRecords = selectedMonth ? records.filter(record => record.date.startsWith(selectedMonth)) : records;
+    const marks = monthRecords.filter(isParticipationRecord);
+    const { shares, totalExpense, unallocated } = calculateExpenseShares(monthRecords);
     const sessions = new Set(marks.map(mark => mark.date));
     const counts = Object.fromEntries(PEOPLE.map(name => [name, 0]));
-    const monthlyShuttle = calculateMonthlyShuttleShares(records, monthPicker.value);
+    const monthlyShuttle = calculateMonthlyShuttleShares(records, selectedMonth);
     const totalOwedByPerson = Object.fromEntries(PEOPLE.map(name => [name, shares[name] + monthlyShuttle.shares[name]]));
-    const settlementAllocations = calculatePrioritySettlements(records, monthPicker.value, totalOwedByPerson);
-    const courtSponsorNames = formatSponsorAmounts(records, "expense", monthPicker.value);
-    const sponsorNames = formatSponsorAmounts(records, "shuttle", monthPicker.value);
+    const settlementAllocations = calculatePrioritySettlements(records, selectedMonth, totalOwedByPerson);
+    const courtSponsorNames = formatSponsorAmounts(records, "expense", selectedMonth);
+    const sponsorNames = formatSponsorAmounts(records, "shuttle", selectedMonth);
     marks.forEach(mark => counts[mark.name]++);
     const sessionTotal = sessions.size;
+
+    if (selectedMonth) {
+      const [year, monthNum] = selectedMonth.split("-").map(Number);
+      const monthDate = new Date(year, monthNum - 1, 1);
+      const monthLabel = monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+      const eyebrow = document.getElementById("eyebrowLabel");
+      if (eyebrow) eyebrow.textContent = `Court 01 / ${monthLabel}`;
+    }
 
     sessionCount.textContent = sessionTotal;
     markCount.textContent = marks.length;
@@ -746,7 +758,7 @@
       row.innerHTML = `<td>${name}</td><td>${counts[name]}</td><td>${sessionTotal ? Math.round(counts[name] / sessionTotal * 100) : 0}%</td><td>Rs ${shares[name].toFixed(2)}</td><td>Rs ${monthlyShuttle.shares[name].toFixed(2)}</td><td>Rs ${totalOwed.toFixed(2)}</td><td>${settlementAllocations[name]}</td>`;
       analysisRows.append(row);
     });
-    renderParticipationChart(records, monthPicker.value);
+    renderParticipationChart(records, selectedMonth);
   }
 
   async function render() {
@@ -824,10 +836,21 @@
   document.getElementById("whatsappBtn").addEventListener("click", async () => {
     const date = datePicker.value;
     if (!date) return;
-    const participants = (await getMarks(date)).map(mark => mark.name);
-    const message = participants.length
+    const dateRecords = (await getAllRecords()).filter(record => record.date === date);
+    const participants = dateRecords.filter(isParticipationRecord).map(mark => mark.name);
+    const courtExpenses = dateRecords.filter(record => record.recordType === "expense");
+    const sponsorTotals = {};
+    courtExpenses.forEach(record => {
+      const sponsor = record.sponsor || "All participants";
+      sponsorTotals[sponsor] = (sponsorTotals[sponsor] || 0) + Number(record.amount || 0);
+    });
+    const attendanceMessage = participants.length
       ? `Badminton participation for ${date}:\n${participants.map((name, index) => `${index + 1}. ${name}`).join("\n")}`
       : `No participants recorded for badminton on ${date}.`;
+    const courtSponsorMessage = courtExpenses.length
+      ? `Court sponsor(s): ${Object.entries(sponsorTotals).map(([sponsor, amount]) => `${sponsor} (Rs ${amount.toFixed(2)})`).join(", ")}`
+      : "Court sponsor(s): None";
+    const message = `${attendanceMessage}\n\n${courtSponsorMessage}`;
     try {
       await navigator.clipboard.writeText(message);
     } catch {
